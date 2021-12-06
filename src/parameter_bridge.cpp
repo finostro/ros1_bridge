@@ -42,6 +42,8 @@ int main(int argc, char * argv[])
   auto ros2_node = rclcpp::Node::make_shared("ros_bridge");
 
   std::list<ros1_bridge::BridgeHandles> all_handles;
+  std::list<ros1_bridge::Bridge1to2Handles> all_handles_1_to_2;
+  std::list<ros1_bridge::Bridge2to1Handles> all_handles_2_to_1;
   std::list<ros1_bridge::ServiceBridge1to2> service_bridges_1_to_2;
   std::list<ros1_bridge::ServiceBridge2to1> service_bridges_2_to_1;
 
@@ -52,6 +54,8 @@ int main(int argc, char * argv[])
   // type: the type of the topic to bridge (e.g. 'pkgname/msg/MsgName')
   // queue_size: the queue size to use (default: 100)
   const char * topics_parameter_name = "topics";
+  const char * topics_1_to_2_parameter_name = "topics_1_to_2";
+  const char * topics_2_to_1_parameter_name = "topics_2_to_1";
   // the services parameters need to be arrays
   // and each item needs to be a dictionary with the following keys;
   // service: the name of the service to bridge (e.g. '/service_name')
@@ -102,6 +106,78 @@ int main(int argc, char * argv[])
     fprintf(
       stderr,
       "The parameter '%s' either doesn't exist or isn't an array\n", topics_parameter_name);
+  }
+
+  // Topics topics_1_to_2
+  XmlRpc::XmlRpcValue topics_1_to_2;
+  if (
+    ros1_node.getParam(topics_1_to_2_parameter_name, topics_1_to_2) &&
+    topics_1_to_2.getType() == XmlRpc::XmlRpcValue::TypeArray)
+  {
+    for (size_t i = 0; i < static_cast<size_t>(topics_1_to_2.size()); ++i) {
+      std::string topic_name = static_cast<std::string>(topics_1_to_2[i]["topic"]);
+      std::string type_name = static_cast<std::string>(topics_1_to_2[i]["type"]);
+      size_t queue_size = static_cast<int>(topics_1_to_2[i]["queue_size"]);
+      if (!queue_size) {
+        queue_size = 100;
+      }
+      printf(
+        "Trying to create ros1 to ros2 bridge for topic '%s' "
+        "with ROS 2 type '%s'\n",
+        topic_name.c_str(), type_name.c_str());
+
+      try {
+        ros1_bridge::Bridge1to2Handles handles = ros1_bridge::create_bridge_from_1_to_2(
+          ros1_node, ros2_node, "", topic_name, queue_size, type_name, topic_name, queue_size);
+        all_handles_1_to_2.push_back(handles);
+      } catch (std::runtime_error & e) {
+        fprintf(
+          stderr,
+          "failed to create ros1 to ros2 bridge for topic '%s' "
+          "with ROS 2 type '%s': %s\n",
+          topic_name.c_str(), type_name.c_str(), e.what());
+      }
+    }
+  } else {
+    fprintf(
+      stderr,
+      "The parameter '%s' either doesn't exist or isn't an array\n", topics_1_to_2_parameter_name);
+  }
+
+  // Topics topics_2_to_1
+  XmlRpc::XmlRpcValue topics_2_to_1;
+  if (
+    ros1_node.getParam(topics_2_to_1_parameter_name, topics_2_to_1) &&
+    topics_2_to_1.getType() == XmlRpc::XmlRpcValue::TypeArray)
+  {
+    for (size_t i = 0; i < static_cast<size_t>(topics_2_to_1.size()); ++i) {
+      std::string topic_name = static_cast<std::string>(topics_2_to_1[i]["topic"]);
+      std::string type_name = static_cast<std::string>(topics_2_to_1[i]["type"]);
+      size_t queue_size = static_cast<int>(topics_2_to_1[i]["queue_size"]);
+      if (!queue_size) {
+        queue_size = 100;
+      }
+      printf(
+        "Trying to create ros2 to ros1 bridge for topic '%s' "
+        "with ROS 2 type '%s'\n",
+        topic_name.c_str(), type_name.c_str());
+
+      try {
+        ros1_bridge::Bridge2to1Handles handles = ros1_bridge::create_bridge_from_2_to_1(
+          ros2_node, ros1_node, type_name, topic_name, queue_size, "", topic_name, queue_size);
+        all_handles_2_to_1.push_back(handles);
+      } catch (std::runtime_error & e) {
+        fprintf(
+          stderr,
+          "failed to create ros2 to ros1 bridge for topic '%s' "
+          "with ROS 2 type '%s': %s\n",
+          topic_name.c_str(), type_name.c_str(), e.what());
+      }
+    }
+  } else {
+    fprintf(
+      stderr,
+      "The parameter '%s' either doesn't exist or isn't an array\n", topics_2_to_1_parameter_name);
   }
 
   // ROS 1 Services in ROS 2
